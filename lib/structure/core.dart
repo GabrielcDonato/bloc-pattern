@@ -2,6 +2,7 @@ import 'package:bloc_pattern/structure/dependency.dart';
 import 'package:bloc_pattern/structure/disposable.dart';
 import 'package:bloc_pattern/structure/inject.dart';
 
+/// Gerencia as dependências de um módulo, permitindo injeção e descarte dinâmico.
 class Core {
   final Map<String, dynamic> _injectMapDependency = {};
   final List<Dependency> dependencies;
@@ -9,36 +10,48 @@ class Core {
 
   Core({required this.dependencies, required this.tag});
 
+  /// Obtém uma dependência injetada.
+  ///
+  /// [params] pode ser usado para passar parâmetros adicionais para a injeção.
+  /// Retorna uma instância do tipo [T].
   T dependency<T>([Map<String, dynamic>? params]) {
-    String typeDependency = T.toString();
-    T dep;
+    final typeDependency = T.toString();
     if (_injectMapDependency.containsKey(typeDependency)) {
-      dep = _injectMapDependency[typeDependency];
-    } else {
-      Dependency d =
-          dependencies.firstWhere((dep) => dep.inject is T Function(Inject));
-      dep = d.inject(Inject(params: params, tag: tag));
-      if (d.singleton) {
-        _injectMapDependency[typeDependency] = dep;
-      }
+      return _injectMapDependency[typeDependency];
     }
-    return dep;
+
+    final dependency = dependencies.firstWhere(
+      (dep) => dep.inject is T Function(Inject),
+      orElse: () => throw Exception("Dependency $typeDependency not found"),
+    );
+
+    final instance = dependency.inject(Inject(params: params, tag: tag));
+    if (dependency.singleton) {
+      _injectMapDependency[typeDependency] = instance;
+    }
+    return instance;
   }
 
+  /// Remove uma dependência injetada.
   void removeDependency<T>() {
-    String type = T.toString();
+    final type = T.toString();
     if (_injectMapDependency.containsKey(type)) {
-      var dependency = _injectMapDependency[type];
-      if (dependency is Disposable) dependency.dispose();
-      _injectMapDependency.remove(type);
+      _disposeDependency(type);
     }
   }
 
+  /// Descarta todas as dependências.
   void dispose() {
-    for (String key in _injectMapDependency.keys) {
-      var dependency = _injectMapDependency[key];
-      if (dependency is Disposable) dependency.dispose();
+    for (final key in _injectMapDependency.keys) {
+      _disposeDependency(key);
     }
     _injectMapDependency.clear();
+  }
+
+  /// Método auxiliar para descartar uma dependência.
+  void _disposeDependency(String type) {
+    final dependency = _injectMapDependency[type];
+    if (dependency is Disposable) dependency.dispose();
+    _injectMapDependency.remove(type);
   }
 }
