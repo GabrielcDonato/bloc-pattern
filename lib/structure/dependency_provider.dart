@@ -1,81 +1,93 @@
+import 'package:bloc_pattern/structure/core.dart';
+import 'package:bloc_pattern/structure/structure.dart';
 import 'package:flutter/material.dart';
-import 'core.dart';
-import 'dependency.dart';
-import 'inject.dart';
 
-final Map<String, Core> _injectMap = {};
+class DependencyInheritedWidget extends InheritedWidget {
+  final Core core;
 
-class DependencyNotFoundException implements Exception {
-  final String message;
-  DependencyNotFoundException(this.message);
+  const DependencyInheritedWidget({
+    Key? key,
+    required this.core,
+    required Widget child,
+  }) : super(key: key, child: child);
+
+  static DependencyInheritedWidget? of(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<DependencyInheritedWidget>();
+  }
 
   @override
-  String toString() => "DependencyNotFoundException: $message";
+  bool updateShouldNotify(DependencyInheritedWidget oldWidget) {
+    return false; // Não notifica rebuilds desnecessários
+  }
 }
 
-class DependencyProvider extends StatefulWidget {
-  final List<Dependency> dependencies;
+class DependencyProvider extends StatelessWidget {
   final String tagText;
+  final List<Dependency> dependencies;
   final Widget child;
 
   const DependencyProvider({
-    key,
+    Key? key,
+    required this.tagText,
     required this.dependencies,
-    this.tagText = "global",
     required this.child,
-  });
+  }) : super(key: key);
 
-  @override
-  DependencyProviderState createState() => DependencyProviderState();
+  static final Map<String, Core> _coreMap = {};
 
-//TODO! colocar como private e utilizar part of com o moduleWidget
+  static Core getCore(String tag) {
+    print('DependencyProvider: Getting core for tag: $tag');
+    return _coreMap[tag] ??= Core(dependencies: [], tag: tag);
+  }
+
   static void registerDependencies(List<Dependency> dependencies, String tag) {
-    if (!_injectMap.containsKey(tag)) {
-      _injectMap[tag] = Core(
-        dependencies: dependencies,
-        tag: tag,
-      );
+    print('DependencyProvider: Registering dependencies for tag: $tag');
+    if (!_coreMap.containsKey(tag)) {
+      _coreMap[tag] = Core(dependencies: dependencies, tag: tag);
+      print('DependencyProvider: New core created for tag: $tag');
     } else {
-      print('DependencyProvider: $tag already registered');
+      print('DependencyProvider: Core already exists for tag: $tag');
     }
+  }
+
+  static T dependency<T>(BuildContext context, [Map<String, dynamic>? params]) {
+    print('DependencyProvider: Getting dependency of type: $T');
+    final inherited = DependencyInheritedWidget.of(context);
+    if (inherited == null) {
+      print('DependencyProvider: Error - InheritedWidget not found');
+      throw Exception('DependencyInheritedWidget not found in the widget tree');
+    }
+    return inherited.core.dependency<T>(params);
   }
 
   static T getDependency<T>(
       [Map<String, dynamic>? params, String tag = "global"]) {
-    print('Getting dependency with tag: $tag');
-    print('Current registered modules: ${_injectMap.keys}');
-
-    final core = _injectMap[tag];
+    print('DependencyProvider: Getting dependency of type: $T with tag: $tag');
+    final core = _coreMap[tag];
     if (core == null) {
-      throw DependencyNotFoundException(
-          "Module \"$tag\" is not in the widget tree");
+      print('DependencyProvider: Error - Module "$tag" not found');
+      throw Exception("Module \"$tag\" is not in the widget tree");
     }
-    print('Dependency found for tag: $tag');
     return core.dependency<T>(params);
   }
 
   static Inject tag(String tagText) => Inject(tag: tagText);
 
-  static void disposeDependency<T>([String tagText = "global"]) {
-    final core = _injectMap[tagText];
-    if (core == null) {
-      print('DependencyProvider: $tagText already disposed');
-    }
-    core?.removeDependency<T>();
-  }
-}
-
-class DependencyProviderState extends State<DependencyProvider> {
-  @override
-  void dispose() {
-    final core = _injectMap[widget.tagText];
-    core?.dispose();
-    _injectMap.remove(widget.tagText);
-    super.dispose();
+  static void disposeDependency<T>(String tag) {
+    print('DependencyProvider: Disposing dependency for tag: $tag');
+    _coreMap[tag]?.dispose();
+    _coreMap.remove(tag);
+    print('DependencyProvider: Dependency disposed and removed for tag: $tag');
   }
 
   @override
   Widget build(BuildContext context) {
-    return widget.child;
+    print('DependencyProvider: Building provider for tag: $tagText');
+    final core = getCore(tagText);
+    return DependencyInheritedWidget(
+      core: core,
+      child: child,
+    );
   }
 }

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 abstract class ModuleWidget extends StatefulWidget {
   const ModuleWidget({
     Key? key,
-  });
+  }) : super(key: key);
 
   List<Dependency> get dependencies;
 
@@ -19,23 +19,24 @@ class _ModuleWidgetState extends State<ModuleWidget> {
   @override
   void initState() {
     super.initState();
-    print('Module - Registering module: ${widget.runtimeType}');
+    print('Module: Initializing module ${widget.runtimeType}');
+    print(
+        'Module: Registering ${widget.dependencies.length} dependencies for ${widget.runtimeType}');
     DependencyProvider.registerDependencies(
         widget.dependencies, widget.runtimeType.toString());
   }
 
   @override
   void dispose() {
+    print('Module: Disposing module ${widget.runtimeType}');
     DependencyProvider.disposeDependency<dynamic>(
         widget.runtimeType.toString());
-
-    print('Module - Disposing module: ${widget.runtimeType}');
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    print('Building: ${widget.runtimeType}');
+    print('Module: Building module ${widget.runtimeType}');
     return DependencyProvider(
       tagText: widget.runtimeType.toString(),
       dependencies: widget.dependencies,
